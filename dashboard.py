@@ -19,64 +19,12 @@ warnings.filterwarnings('ignore')
 st.set_page_config(page_title="Superstore EDA", page_icon=":bar_chart:", layout="wide"
 )
 
-
-
 # Set the app's main title and subtitle
 st.title(":bar_chart: Superstore EDA")
 st.write("*An interactive app for exploratory data analysis and forecasting.*")
 
-# Function to display various insights about the dataset
-def display_data_insights(df):
-    # Define available insight options
-    insights_options = ["Basic Info",
-                        "Preview of the Data",
-                        "Missing Values", 
-                        "Duplicate Rows", 
-                        "Numeric Column Statistics", 
-                        "Categorical Column Value Counts", 
-                        "Correlation Heatmap"]
-    st.markdown("<h2>Select Insight to Display</h2>", unsafe_allow_html=True)
-    selected_insight = st.selectbox(
-        "Select insight:", insights_options, label_visibility="collapsed"
-    )
+tab1, tab2, tab3, tab4, tab5= st.tabs(["Home", "Dataset", "Data Cleaning", "Visualizations", "Forecasting"])
 
-    if selected_insight == "Basic Info":
-        st.write("## Basis Info")
-        st.write("### Dataset Insights")
-        st.write(f"**Number of Rows:** {df.shape[0]}")
-        st.write(f"**Number of Columns:** {df.shape[1]}")
-        st.write("### Column Details")
-        st.dataframe(df.dtypes.astype(str).rename("Data Type"))
-    elif selected_insight == "Preview of the Data":
-        st.write("### Preview of the Data")
-        st.dataframe(df.head())
-    elif selected_insight == "Missing Values":
-        missing_values = df.isnull().sum()
-        st.write("### Missing Values")
-        st.write(f"**Total Missing Values by Column:**")
-        st.dataframe(missing_values[missing_values > 0].rename("Missing Count"))
-        rows_with_missing = df[df.isnull().any(axis=1)]
-        st.write("### Rows with Missing Values")
-        st.dataframe(rows_with_missing)
-    elif selected_insight == "Duplicate Rows":
-        duplicates = df.duplicated().sum()
-        st.write(f"**Number of Duplicate Rows:** {duplicates}")
-        duplicate_rows = df[df.duplicated()]
-        st.write("### Duplicate Rows")
-        st.dataframe(duplicate_rows)
-    elif selected_insight == "Numeric Column Statistics":
-        st.write("### Numeric Column Statistics")
-        st.dataframe(df.describe().transpose())
-    elif selected_insight == "Categorical Column Value Counts":
-        st.write("### Categorical Column Value Counts")
-        categorical_columns = df.select_dtypes(include="object").columns
-        for col in categorical_columns:
-            with st.expander(f"**{col}** - Value Counts"):
-                st.dataframe(df[col].value_counts())
-    elif selected_insight == "Correlation Heatmap":
-        st.write("### Correlation Heatmap")
-        corr = df.select_dtypes(include=[np.number]).corr()
-        st.write(corr.style.background_gradient(cmap="coolwarm"))
 
 # Function to handle missing values in the dataset
 def handle_missing_values(df, missing_action):
@@ -346,25 +294,20 @@ def create_download_button(df, columns, file_name):
     )
 
 # Tabs for organizing sections
-tab1, tab2, tab3, tab4 = st.tabs(["Dataset", "Data Cleaning", "Visualizations", "Forecasting"])
 
-# Tab 1: Dataset
 with tab1:
-    st.header("Welcome to the Superstore Sales Dashboard")
-
+    st.write("### Welcome to the Superstore Sales Dashboard")
     st.markdown("""
-    This interactive dashboard helps you **explore, clean, visualize, and forecast**
-    sales data for a retail superstore.  
+        This interactive dashboard helps you **explore, clean, visualize, and forecast**
+        sales data for a retail superstore.  
 
-    - **Exploratory Data Analysis**: Understand key trends and distributions.  
-    - **Data Cleaning Tools**: Handle missing values and duplicates.  
-    - **Visualizations**: Gain insights by region, category, and time.  
-    - **Forecasting**: Predict future sales with advanced ARIMA models.  
+        - **Exploratory Data Analysis**: Understand key trends and distributions.  
+        - **Data Cleaning Tools**: Handle missing values and duplicates.  
+        - **Visualizations**: Gain insights by region, category, and time.  
+        - **Forecasting**: Predict future sales with advanced ARIMA models.  
 
-    Upload your dataset to get started, or use the filters to drill down into insights.
-    """)
-
-    st.header("Upload Your Dataset")
+        Upload your dataset to get started, or use the filters to drill down into insights.
+        """)
 
     # File uploader widget to allow user to upload a file
     fl = st.file_uploader(":file_folder: Upload a file", type=["csv", "txt", "xlsx", "xls"])
@@ -372,91 +315,198 @@ with tab1:
     # Function to load the dataset from the uploaded file (with caching to avoid reloading every time)
     @st.cache_data
     def load_data(file):
-        try:
-            # Read the file into a pandas DataFrame
-            df = pd.read_excel(file)  # You can switch this to pd.read_csv(file) if uploading a CSV
-            return df
-        except Exception as e:
-            # If an error occurs, display an error message
-            st.error(f"Error reading the file: {e}")
-            st.stop()
+            try:
+                # Read the file into a pandas DataFrame
+                df = pd.read_excel(file)  # You can switch this to pd.read_csv(file) if uploading a CSV
+                return df
+            except Exception as e:
+                # If an error occurs, display an error message
+                st.error(f"Error reading the file: {e}")
+                st.stop()
 
     # Load the data if file is uploaded, otherwise load a default file from the local machine
     if fl is not None:
-        df = load_data(fl)
+        st.session_state.df = load_data(fl)
         st.success("File successfully uploaded!")
-        display_data_insights(df)  # Load the dataset from uploaded file
     else:
         st.error("Please upload a dataset to begin.")  
         st.stop()
 
-# Tab 2: Data Cleaning
 with tab2:
-    # Summarize missing values
-    missing_summary = df.isnull().sum().reset_index()
-    missing_summary.columns = ["Column", "Missing Values"]
-    missing_summary["% Missing"] = (missing_summary["Missing Values"] / len(df)) * 100
+    # Function to display various insights about the dataset
+    def display_data_insights(df):
+        st.subheader("Dataset Insights")
+    
+        # --- Basic Info ---
+        with st.expander("ℹ️ Basic Info", expanded=False):
+            st.write(f"*Number of Rows:* {df.shape[0]}")
+            st.write(f"*Number of Columns:* {df.shape[1]}")
+            st.write("###### Column Details")
+            st.dataframe(df.dtypes.astype(str).rename("Data Type"))
 
-    # Check if there are any missing values
-    if missing_summary["Missing Values"].sum() > 0:
-        st.write("### Missing Values Detected")
-        st.write(missing_summary.style.background_gradient(cmap="Reds"))
+        # --- Preview ---
+        with st.expander("👀 Preview of the Data", expanded=False):
+            st.dataframe(df.head())
 
-        # Display rows with missing values
-        st.write("### Rows with Missing Values")
-        st.dataframe(df[df.isnull().any(axis=1)])
+        # --- Missing Values ---
+        # --- Missing Values ---
+        with st.expander("❌ Missing Values", expanded=False):
+            missing_values = df.isnull().sum()
+            missing_values = missing_values[missing_values > 0]  # Keep only columns with missing values
 
-        # User options for handling missing values
-        missing_action = st.radio(
-            "How would you like to handle missing values?",
-            [
-                "Drop Rows with Missing Values",
-                "Fill Missing Values with Mean (Numeric Columns)",
-                "Fill Missing Values with Median (Numeric Columns)",
-                "Fill Missing Values with Mode (Categorical Columns)",
-                "Fill Missing Values with Custom Value",
-            ],
-        )
+            if not missing_values.empty:
+                st.write("##### Total Missing Values by Column")
+                st.dataframe(missing_values.rename("Missing Count"), height=200)
 
-        # Handle missing values based on user input
-        df = handle_missing_values(df, missing_action)
-        st.write(f"#### Missing values handled: {missing_action}")
+                rows_with_missing = df[df.isnull().any(axis=1)]
+                st.write("##### Rows with Missing Values")
+                st.dataframe(rows_with_missing, height=200)
+            else:
+                st.success("✅ No missing values detected")
+
+
+        # --- Duplicate Rows ---
+        with st.expander("📑 Duplicate Rows", expanded=False):
+            duplicates = df.duplicated().sum()
+
+            if duplicates > 0:
+                st.write(f"*Number of Duplicate Rows:* {duplicates}")
+                duplicate_rows = df[df.duplicated()]
+                st.dataframe(duplicate_rows, height=200)
+            else:
+                st.success("✅ No duplicate rows found")
+
+
+        # --- Numeric Stats ---
+        with st.expander("🔢 Numeric Column Statistics", expanded=False):
+            st.dataframe(df.describe().transpose())
+
+        # --- Categorical Stats ---
+        with st.expander("🏷️ Categorical Column Value Counts", expanded=False):
+            categorical_columns = df.select_dtypes(include="object").columns
+            for col in categorical_columns:
+                with st.expander(f"**{col}** - Value Counts"):
+                    st.dataframe(df[col].value_counts())
+
+        # --- Correlation Heatmap ---
+        with st.expander("📉 Correlation Heatmap", expanded=False):
+            st.markdown("""
+            *This correlation matrix reveals how key business variables interact.*  
+            Values close to +1 or -1 indicate strong relationships.  
+            """)
+            numeric_df = df.select_dtypes(include=[np.number])
+            if numeric_df.shape[1] < 2:
+                st.warning("Need at least two numeric columns to generate a correlation matrix.")
+                return
+
+            corr = numeric_df.corr()
+
+            col1, col2 = st.columns(2)
+            with col1:
+                focus_column = st.selectbox("Focus on relationships with:", options=corr.columns, index=0)
+            with col2:
+                threshold = st.slider("Highlight correlations above/below:", 0.0, 1.0, 0.5, 0.1)
+
+            fig = px.imshow(
+                corr,
+                text_auto='.2f',
+                aspect="auto",
+                color_continuous_scale='RdBu_r',
+                title=f'Correlation Matrix (Focus: {focus_column})',
+                labels=dict(color="Correlation")
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Automated insights
+            with st.expander("🔍 Detailed Correlation Insights", expanded=True):
+                focus_correlations = corr[focus_column].drop(focus_column)
+                strong_rels = focus_correlations[abs(focus_correlations) >= threshold]
+                if not strong_rels.empty:
+                    for col, val in strong_rels.items():
+                        emoji = "📈" if val > 0 else "📉"
+                        st.write(f"{emoji} **{col}** → {val:.2f}")
+                else:
+                    st.info(f"No correlations above threshold |r| >= {threshold}")
+    if "df" in st.session_state:
+        display_data_insights(st.session_state.df.copy())
+    else:
+        st.warning("⚠️ Please upload a dataset in the Home tab first.")
+
+with tab3:
+    if "df" in st.session_state:
+        df = st.session_state.df.copy()
+
+        # --- Missing Values Section ---
+        with st.expander("❌ Handle Missing Values", expanded=False):
+            missing_summary = df.isnull().sum().reset_index()
+            missing_summary.columns = ["Column", "Missing Values"]
+            missing_summary["% Missing"] = (missing_summary["Missing Values"] / len(df)) * 100
+
+            if missing_summary["Missing Values"].sum() > 0:
+                st.write("##### Missing Values Detected")
+                st.write(missing_summary.style.background_gradient(cmap="Reds"))
+
+                # Display rows with missing values
+                st.write("##### Rows with Missing Values")
+                st.dataframe(df[df.isnull().any(axis=1)], height=200)
+
+                # User options for handling missing values
+                missing_action = st.radio(
+                    "**How would you like to handle missing values?**",
+                    [
+                        "Drop Rows with Missing Values",
+                        "Fill Missing Values with Mean (Numeric Columns)",
+                        "Fill Missing Values with Median (Numeric Columns)",
+                        "Fill Missing Values with Mode (Categorical Columns)",
+                        "Fill Missing Values with Custom Value",
+                    ],
+                )
+
+                # Handle missing values based on user input
+                df = handle_missing_values(df, missing_action)
+                st.write(f"##### Missing values handled: {missing_action}")
+
+            else:
+                st.success("✅ No Missing Values Detected")
+                # Fill NaNs in Category & Sub-Category for visualization purposes
+                df['Category'] = df['Category'].fillna('Unknown')
+                df['Sub-Category'] = df['Sub-Category'].fillna('Unknown')
+
+        # --- Duplicate Rows Section ---
+        with st.expander("📑 Handle Duplicate Rows", expanded=False):
+            duplicate_count = df.duplicated().sum()
+
+            if duplicate_count > 0:
+                st.write(f"##### {duplicate_count} Duplicate Rows Detected")
+
+                # Display rows that are duplicated
+                st.dataframe(df[df.duplicated()], height=200)
+
+                # User options for handling duplicate values
+                duplicate_action = st.radio(
+                    "**How would you like to handle duplicate values?**",
+                    [
+                        "Keep All Rows",
+                        "Drop Duplicate Rows (Keep First Instance)",
+                        "Drop Duplicate Rows (Keep Last Instance)",
+                        "Mark Duplicates",
+                    ],
+                )
+
+                # Handle duplicate rows based on user input
+                df = handle_duplicate_values(df, duplicate_action)
+                st.write(f"##### Duplicate values handled: {duplicate_action}")
+            else:
+                st.success("✅ No Duplicate Rows Detected")
+
+        # --- Show Cleaned Data ---
+        st.subheader("🧹 Cleaned Data Preview")
+        st.dataframe(df, height=300)
 
     else:
-        st.write("#### No Missing Values Detected")
+        st.warning("⚠️ Please upload a dataset in the Home tab first.")
 
-    # Handle 'NaN' values in 'Category' and 'Sub-Category' for visualization purposes (treemap)
-    df['Category'] = df['Category'].fillna('Unknown')  # Fill missing 'Category' values with 'Unknown'
-    df['Sub-Category'] = df['Sub-Category'].fillna('Unknown')  # Fill missing 'Sub-Category' values with 'Unknown'
-
-    # Calculate duplicate count
-    duplicate_count = df.duplicated().sum()
-    if duplicate_count > 0:
-        st.write(f"### {duplicate_count} Duplicate Rows Detected")
-
-        # Display rows that are duplicated
-        st.dataframe(df[df.duplicated()])
-
-        # User options for handling duplicate values
-        duplicate_action = st.radio(
-            "How would you like to handle duplicate values?",
-            [
-                "Keep All Rows",
-                "Drop Duplicate Rows (Keep First Instance)",
-                "Drop Duplicate Rows (Keep Last Instance)",
-                "Mark Duplicates",
-            ],
-        )
-
-        # Handle duplicate rows based on user input
-        df = handle_duplicate_values(df, duplicate_action)
-        st.write(f"#### Duplicate values handled: {duplicate_action}")
-    else:
-        st.write("#### No Duplicate Rows Detected")
-
-    # Display the cleaned data to the user
-    st.subheader("Raw Data")
-    st.dataframe(df)  # Show all rows of the cleaned data
+    
     
 # Sidebar for filtering options
 st.sidebar.header("**Data Filtering**")
@@ -495,8 +545,8 @@ city = st.sidebar.multiselect(
 # Apply the location filters
 filtered_df = filter_by_location(df, region, state, city)
 
-# Tab 3: Visualizations
-with tab3:
+
+with tab4:
     col1, col2 = st.columns(2)
     # Category-wise data handling in the first column
     with col1:
@@ -530,10 +580,10 @@ with tab3:
     insights = generate_sales_insights(filtered_df)
 
     # Displaying the insights in the dashboard
-    st.write(f"Total Sales: ${insights['total_sales']:.2f}")
-    st.write(f"Best Performing Month: {insights['best_month']} with ${insights['best_month_value']:.2f} in sales.")
-    st.write(f"Worst Performing Month: {insights['worst_month']} with ${insights['worst_month_value']:.2f} in sales.")
-    st.write(f"Latest Month-over-Month Growth: {insights['latest_growth']:.2f}%")
+    st.write(f"*Total Sales: ${insights['total_sales']:.2f}*")
+    st.write(f"*Best Performing Month: {insights['best_month']} with ${insights['best_month_value']:.2f} in sales.*")
+    st.write(f"*Worst Performing Month: {insights['worst_month']} with ${insights['worst_month_value']:.2f} in sales.*")
+    st.write(f"*Latest Month-over-Month Growth: {insights['latest_growth']:.2f}%*")
 
     # Treemap Visualization for hierarchical sales view
     st.subheader("Hierarchical View of Sales")
@@ -548,23 +598,23 @@ with tab3:
     with st.expander("View Detailed Category-wise Sales & Profit Insights"):
         insights = generate_sales_profit_insights_by_category(filtered_df)
         for index, row in insights["category_grouped"].iterrows():
-            st.write(f"### Category: {row['Category']}")
-            st.write(f"**Total Sales**: ${row['total_sales']:.2f}")
-            st.write(f"**Total Profit**: ${row['total_profit']:.2f}")
-            st.write(f"**Average Sales to Profit Ratio**: {row['avg_sales_profit_ratio']:.2f}")
-            st.write(f"**Sales-Profit Correlation**: {row['correlation']:.2f}")
+            st.write(f"##### Category: {row['Category']}")
+            st.write(f"*Total Sales*: ${row['total_sales']:.2f}")
+            st.write(f"*Total Profit*: ${row['total_profit']:.2f}")
+            st.write(f"*Average Sales to Profit Ratio*: {row['avg_sales_profit_ratio']:.2f}")
+            st.write(f"*Sales-Profit Correlation*: {row['correlation']:.2f}")
 
             col1, col2, col3 = st.columns([1, 2, 2])
             with col1:
-                st.write(f"#### Top 5 Products by Sales:")
+                st.write(f"##### Top 5 Products by Sales:")
                 category_sales = insights["top_sales_by_category"][insights["top_sales_by_category"]["Category"] == row["Category"]]
                 st.write(category_sales[['Sub-Category', 'Sales']])
             with col2:
-                st.write(f"#### Top 5 Products by Profit:")
+                st.write(f"##### Top 5 Products by Profit:")
                 category_profit = insights["top_profit_by_category"][insights["top_profit_by_category"]["Category"] == row["Category"]]
                 st.write(category_profit[['Sub-Category', 'Profit']])
             with col3:
-                st.write(f"#### Outliers (High Sales, Low Profit):")
+                st.write(f"##### Outliers (High Sales, Low Profit):")
                 category_outliers = insights["outliers_by_category"][insights["outliers_by_category"]["Category"] == row["Category"]]
                 st.write(category_outliers[['Sub-Category', 'Sales', 'Profit']])
     
@@ -576,8 +626,7 @@ with tab3:
         sub_category_Year = pd.pivot_table(data=filtered_df, values="Sales", index=["Sub-Category"], columns="month")  # Pivot table for sales by sub-category and month
         st.write(sub_category_Year.style.background_gradient(cmap="Blues"))  # Display the pivot table with color gradient
 
-# Tab 4: Forecasting
-with tab4:
+with tab5:
     # Forecasting Section for future sales prediction
     st.subheader("Future Sales Prediction")
     forecast_period = st.slider("Select forecast period (months)", min_value=1, max_value=24, value=12)
