@@ -18,6 +18,9 @@ warnings.filterwarnings('ignore')
 # Set the Streamlit app configuration
 st.set_page_config(page_title="Superstore EDA", page_icon=":bar_chart:", layout="wide"
 )
+
+
+
 # Set the app's main title and subtitle
 st.title(":bar_chart: Superstore EDA")
 st.write("*An interactive app for exploratory data analysis and forecasting.*")
@@ -389,10 +392,7 @@ with tab1:
 
 # Tab 2: Data Cleaning
 with tab2:
-    st.header("Data Cleaning")
-
     # Summarize missing values
-    st.write("### Missing Values")
     missing_summary = df.isnull().sum().reset_index()
     missing_summary.columns = ["Column", "Missing Values"]
     missing_summary["% Missing"] = (missing_summary["Missing Values"] / len(df)) * 100
@@ -435,7 +435,6 @@ with tab2:
         st.write(f"### {duplicate_count} Duplicate Rows Detected")
 
         # Display rows that are duplicated
-        st.write("### Duplicate Rows")
         st.dataframe(df[df.duplicated()])
 
         # User options for handling duplicate values
@@ -457,20 +456,8 @@ with tab2:
 
     # Display the cleaned data to the user
     st.subheader("Raw Data")
-    data_display_option = st.radio(
-    "Choose how to view the raw data:",  # Allow the user to choose how to view the raw data
-    options=["Display All Rows", "Display First 100 Rows", "Interactive Table"],  # Options to display the data
-    horizontal=True  # Display options horizontally
-    )
-
-    # Display the raw data based on the user's selection
-    if data_display_option == "Display All Rows":
-        st.dataframe(df)  # Show all rows of the cleaned data
-    elif data_display_option == "Display First 100 Rows":
-        st.dataframe(df.head(100))  # Show the first 100 rows of the cleaned data
-    else:
-        AgGrid(df)  # Display an interactive table for the raw data (if AgGrid is installed)
-
+    st.dataframe(df)  # Show all rows of the cleaned data
+    
 # Sidebar for filtering options
 st.sidebar.header("**Data Filtering**")
 # Date Filtering Section in Sidebar
@@ -510,11 +497,9 @@ filtered_df = filter_by_location(df, region, state, city)
 
 # Tab 3: Visualizations
 with tab3:
-    st.header("Visualisations")
     col1, col2 = st.columns(2)
     # Category-wise data handling in the first column
     with col1:
-        st.subheader("Category-wise Data Visualization")
         # Expander for category chart type selection
         category_chart_type = st.selectbox(
                 "Choose chart type for Category-wise data:",
@@ -526,7 +511,6 @@ with tab3:
         
     # Region-wise data handling in the second column
     with col2:
-        st.subheader("Region-wise Data Visualization")
         # Expander for region chart type selection
         region_chart_type = st.selectbox(
                 "Choose chart type for Region-wise data:",
