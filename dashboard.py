@@ -317,12 +317,8 @@ with tab1:
         st.success("File successfully uploaded!")
         display_data_insights(df)  # Load the dataset from uploaded file
     else:
-        default_path = r"C:\\Users\\bhoom\\OneDrive\\Documents\\opencv\\myenv\\Superstore.csv"  # Local path for default file
-        if os.path.exists(default_path):
-            df = load_data(default_path)  # Load the default dataset
-        else:
-            st.error("Default file not found. Please upload a file.")  # Show error if default file is missing
-            st.stop()  # Stop further execution if the file cannot be loaded
+        st.error("Please upload a dataset to begin.")  
+        st.stop()
 
 # Tab 2: Data Cleaning
 with tab2:

@@ -1,0 +1,12 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# OS junk
+.DS_Store
+
+# Large data files
+*.csv
+*.xlsx
+*.xls
