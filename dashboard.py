@@ -10,6 +10,8 @@ import plotly.figure_factory as ff
 from statsmodels.tsa.arima.model import ARIMA
 import numpy as np
 from pmdarima import auto_arima
+from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
+
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore') 
@@ -130,6 +132,7 @@ def create_chart(df, chart_type, x_column, y_column, title, color_column=None):
     fig = None
     if chart_type == "Bar Chart":
         fig = px.bar(df, x=x_column, y=y_column, title=title, color=color_column)
+
         # Calculate insights for Bar Chart
         total_sales = df[y_column].sum()
         average_sales = df[y_column].mean()
@@ -137,6 +140,7 @@ def create_chart(df, chart_type, x_column, y_column, title, color_column=None):
         st.write(f"**Average {y_column}:** {average_sales}")
     elif chart_type == "Pie Chart":
         fig = px.pie(df, values=y_column, names=x_column, title=title)
+
         # Calculate insights for Pie Chart
         pie_data = df.groupby(x_column)[y_column].sum()
         largest_segment = pie_data.idxmax()
@@ -231,7 +235,7 @@ def generate_sales_profit_insights_by_category(df):
     return insights
 
 # --- Sales Forecasting using Auto ARIMA ---
-def forecast_sales(data, forecast_period=12):
+def forecast_sales(data, forecast_period=12, overall=False):
     try:
         data['Order Date'] = pd.to_datetime(data['Order Date'], errors='coerce')
         sales_data = data.groupby('Order Date')['Sales'].sum()
@@ -245,15 +249,17 @@ def forecast_sales(data, forecast_period=12):
             suppress_warnings=True
         )
         
-        # Forecast
-        forecast = model.predict(n_periods=forecast_period)
+         # Forecast with confidence intervals
+        forecast, conf_int = model.predict(n_periods=forecast_period, return_conf_int=True)
 
-        # Generate future dates for the forecast period
+        # Generate future dates
         last_date = sales_data.index[-1]
         future_dates = pd.date_range(last_date, periods=forecast_period + 1, freq='M')[1:]
         forecast_df = pd.DataFrame({
             'Date': future_dates,
-            'Forecasted Sales': forecast
+            'Forecasted Sales': forecast,
+            'Lower CI': conf_int[:, 0],
+            'Upper CI': conf_int[:, 1]
         })
 
         # Plot the forecast
@@ -267,12 +273,32 @@ def forecast_sales(data, forecast_period=12):
             mode='lines', name='Forecasted Sales',
             line=dict(dash='dash')
         ))
+        forecast_fig.add_trace(go.Scatter(
+            x=np.concatenate([forecast_df['Date'], forecast_df['Date'][::-1]]),
+            y=np.concatenate([forecast_df['Upper CI'], forecast_df['Lower CI'][::-1]]),
+            fill='toself',
+            fillcolor='rgba(0,100,80,0.2)',
+            line=dict(color='rgba(255,255,255,0)'),
+            name='Confidence Interval',
+            showlegend=True
+        ))
         forecast_fig.update_layout(
             title="Sales Forecast (Auto ARIMA)",
             xaxis_title="Date",
             yaxis_title="Sales"
         )
         st.plotly_chart(forecast_fig)
+
+        # --- Model Fit Quality ---
+        train_pred = model.predict_in_sample()
+        rmse = np.sqrt(mean_squared_error(sales_data, train_pred))
+        mape = mean_absolute_percentage_error(sales_data, train_pred) * 100
+
+        st.write("### Model Fit Quality")
+        st.write(f"**AIC:** {model.aic()}")
+        st.write(f"**BIC:** {model.bic()}")
+        st.write(f"**RMSE:** {rmse:.2f}")
+        st.write(f"**MAPE:** {mape:.2f}%")
 
     except Exception as e:
         st.error(f"An error occurred while forecasting: {e}")
@@ -321,22 +347,25 @@ tab1, tab2, tab3, tab4 = st.tabs(["Dataset", "Data Cleaning", "Visualizations", 
 
 # Tab 1: Dataset
 with tab1:
-    st.header("Welcome to the Superstore Sales Dashboard 🎉")
+    st.header("Welcome to the Superstore Sales Dashboard")
 
     st.markdown("""
     This interactive dashboard helps you **explore, clean, visualize, and forecast**
     sales data for a retail superstore.  
 
-    - 📊 **Exploratory Data Analysis**: Understand key trends and distributions.  
-    - 🧹 **Data Cleaning Tools**: Handle missing values and duplicates.  
-    - 📈 **Visualizations**: Gain insights by region, category, and time.  
-    - 🔮 **Forecasting**: Predict future sales with advanced ARIMA models.  
+    - **Exploratory Data Analysis**: Understand key trends and distributions.  
+    - **Data Cleaning Tools**: Handle missing values and duplicates.  
+    - **Visualizations**: Gain insights by region, category, and time.  
+    - **Forecasting**: Predict future sales with advanced ARIMA models.  
 
     Upload your dataset to get started, or use the filters to drill down into insights.
     """)
+
     st.header("Upload Your Dataset")
+
     # File uploader widget to allow user to upload a file
     fl = st.file_uploader(":file_folder: Upload a file", type=["csv", "txt", "xlsx", "xls"])
+
     # Function to load the dataset from the uploaded file (with caching to avoid reloading every time)
     @st.cache_data
     def load_data(file):
@@ -348,6 +377,7 @@ with tab1:
             # If an error occurs, display an error message
             st.error(f"Error reading the file: {e}")
             st.stop()
+
     # Load the data if file is uploaded, otherwise load a default file from the local machine
     if fl is not None:
         df = load_data(fl)
@@ -360,18 +390,22 @@ with tab1:
 # Tab 2: Data Cleaning
 with tab2:
     st.header("Data Cleaning")
+
     # Summarize missing values
     st.write("### Missing Values")
     missing_summary = df.isnull().sum().reset_index()
     missing_summary.columns = ["Column", "Missing Values"]
     missing_summary["% Missing"] = (missing_summary["Missing Values"] / len(df)) * 100
+
     # Check if there are any missing values
     if missing_summary["Missing Values"].sum() > 0:
         st.write("### Missing Values Detected")
         st.write(missing_summary.style.background_gradient(cmap="Reds"))
+
         # Display rows with missing values
         st.write("### Rows with Missing Values")
         st.dataframe(df[df.isnull().any(axis=1)])
+
         # User options for handling missing values
         missing_action = st.radio(
             "How would you like to handle missing values?",
@@ -383,21 +417,27 @@ with tab2:
                 "Fill Missing Values with Custom Value",
             ],
         )
+
         # Handle missing values based on user input
         df = handle_missing_values(df, missing_action)
         st.write(f"#### Missing values handled: {missing_action}")
+
     else:
         st.write("#### No Missing Values Detected")
+
     # Handle 'NaN' values in 'Category' and 'Sub-Category' for visualization purposes (treemap)
     df['Category'] = df['Category'].fillna('Unknown')  # Fill missing 'Category' values with 'Unknown'
     df['Sub-Category'] = df['Sub-Category'].fillna('Unknown')  # Fill missing 'Sub-Category' values with 'Unknown'
+
     # Calculate duplicate count
     duplicate_count = df.duplicated().sum()
     if duplicate_count > 0:
         st.write(f"### {duplicate_count} Duplicate Rows Detected")
+
         # Display rows that are duplicated
         st.write("### Duplicate Rows")
         st.dataframe(df[df.duplicated()])
+
         # User options for handling duplicate values
         duplicate_action = st.radio(
             "How would you like to handle duplicate values?",
@@ -408,18 +448,21 @@ with tab2:
                 "Mark Duplicates",
             ],
         )
+
         # Handle duplicate rows based on user input
         df = handle_duplicate_values(df, duplicate_action)
         st.write(f"#### Duplicate values handled: {duplicate_action}")
     else:
         st.write("#### No Duplicate Rows Detected")
-        # Display the cleaned data to the user
+
+    # Display the cleaned data to the user
     st.subheader("Raw Data")
     data_display_option = st.radio(
     "Choose how to view the raw data:",  # Allow the user to choose how to view the raw data
     options=["Display All Rows", "Display First 100 Rows", "Interactive Table"],  # Options to display the data
     horizontal=True  # Display options horizontally
     )
+
     # Display the raw data based on the user's selection
     if data_display_option == "Display All Rows":
         st.dataframe(df)  # Show all rows of the cleaned data
@@ -475,57 +518,44 @@ with tab3:
         # Expander for category chart type selection
         category_chart_type = st.selectbox(
                 "Choose chart type for Category-wise data:",
-                options=["Bar Chart", "Pie Chart", "Line Chart"]
+                options=["Bar Chart", "Pie Chart"]
             )
         # Call the generic chart function
         fig = create_chart(df, category_chart_type, "Category", "Sales", "Category-wise Sales")
         st.plotly_chart(fig)
-        # View Data Option for category-wise sales
-        with st.expander("View Category-wise Data"):
-            st.dataframe(filtered_df[['Category', 'Sales']])  # Show a preview of the data
-        # Download Region-wise Sales Data
-        create_download_button(filtered_df, ['Category', 'Sales'], "Category_Sales")
+        
     # Region-wise data handling in the second column
     with col2:
         st.subheader("Region-wise Data Visualization")
         # Expander for region chart type selection
         region_chart_type = st.selectbox(
                 "Choose chart type for Region-wise data:",
-                options=["Bar Chart", "Pie Chart", "Line Chart"]
+                options=["Bar Chart", "Pie Chart"]
             )
         # Call the generic chart function
         fig = create_chart(df, region_chart_type, "Region", "Sales", "Region-wise Sales")
         st.plotly_chart(fig)
-        # View Data Option for region-wise sales
-        with st.expander("View Region-wise Data"):
-            st.dataframe(filtered_df[['Region', 'Sales']])  # Show a preview of the data
-        # Download option for region-wise sales data
-        create_download_button(filtered_df, ['Region', 'Sales'], "Region_Sales")
+    
     # Time Series Analysis Visualization
     st.subheader("Time Series Analysis")
+
     fig = plot_time_series_sales(filtered_df)  # Plot time series sales
     st.plotly_chart(fig, use_container_width=True, key="time_series_chart")  # Display chart
+
     # Generate insights and display on dashboard
     insights = generate_sales_insights(filtered_df)
+
     # Displaying the insights in the dashboard
     st.write(f"Total Sales: ${insights['total_sales']:.2f}")
     st.write(f"Best Performing Month: {insights['best_month']} with ${insights['best_month_value']:.2f} in sales.")
     st.write(f"Worst Performing Month: {insights['worst_month']} with ${insights['worst_month_value']:.2f} in sales.")
     st.write(f"Latest Month-over-Month Growth: {insights['latest_growth']:.2f}%")
-    # View Data Option for time series sales
-    with st.expander("View Time Series Data"):
-        st.dataframe(filtered_df[['month_year', 'Sales']])  # Show a preview of the data
-    # Download option for time series sales data
-    create_download_button(filtered_df, ['month_year', 'Sales'], "Time_Series_Sales")
+
     # Treemap Visualization for hierarchical sales view
     st.subheader("Hierarchical View of Sales")
     fig = plot_sales_treemap(filtered_df)  # Plot sales treemap
     st.plotly_chart(fig, use_container_width=True, key="treemap_sales_chart")  # Display chart
-    # View Data Option for treemap sales
-    with st.expander("View Treemap Data"):
-        st.dataframe(filtered_df[['Region', 'Category', 'Sub-Category', 'Sales']])  # Show a preview of the data
-    # Download option for treemap data
-    create_download_button(filtered_df, ['Region', 'Category', 'Sub-Category', 'Sales'], "Treemap_Sales")
+    
     # Scatter Plot for relationship between sales and profit
     st.subheader("Relationship Between Sales and Profit")
     fig = plot_scatter_sales_profit(filtered_df)  # Plot scatter plot
@@ -553,20 +583,10 @@ with tab3:
                 st.write(f"#### Outliers (High Sales, Low Profit):")
                 category_outliers = insights["outliers_by_category"][insights["outliers_by_category"]["Category"] == row["Category"]]
                 st.write(category_outliers[['Sub-Category', 'Sales', 'Profit']])
-    # Download option for scatter plot data
-    create_download_button(filtered_df, ['Sales', 'Profit'], "Sales_Profit_Data")
-    # Viewing first 500 rows of filtered data
-    st.subheader("First 500 Rows of Filtered Data")
-    first_500_rows = filtered_df.head(500)  # Extract first 500 rows for preview
-    st.dataframe(first_500_rows)  # Display first 500 rows
-    # Download button for the first 500 rows
-    create_download_button(first_500_rows, first_500_rows.columns, "First_500_Rows")
+    
     # --- Month-wise Sub-Category Sales Summary ---
     st.subheader(":point_right: Month-wise Sub-Category Sales Summary")
     with st.expander("Summary_Table"):
-        df_sample = df[0:5][["Region", "State", "City", "Category", "Sales", "Profit", "Quantity"]]  # Sample data for table
-        fig = ff.create_table(df_sample, colorscale="Cividis")  # Create table visualization
-        st.plotly_chart(fig, use_container_width=True)
         st.markdown("Month-wise Sub-Category Table")
         filtered_df["month"] = filtered_df["Order Date"].dt.month_name()  # Extract month names from order date
         sub_category_Year = pd.pivot_table(data=filtered_df, values="Sales", index=["Sub-Category"], columns="month")  # Pivot table for sales by sub-category and month
@@ -574,30 +594,8 @@ with tab3:
 
 # Tab 4: Forecasting
 with tab4:
-    # Visualization Filters for user interaction
-    st.subheader("Filters for Visualization")
-    col1, col2 = st.columns(2)  # Create two columns for filters
-    with col1:
-        region_filter = st.selectbox("Select Region", options=df['Region'].unique())  # Region filter
-    with col2:
-        category_filter = st.selectbox("Select Category", options=df['Category'].unique())  # Category filter
-    # Filter the data based on user input
-    filtered_data = df[(df['Region'] == region_filter) & (df['Category'] == category_filter)]  # Apply the region and category filters
-    st.write(f"Displaying data for Region: {region_filter} and Category: {category_filter}")  # Display filter info
-    st.dataframe(filtered_data.head(100))  # Display the filtered data
-    # Data Visualizations for filtered data
-    st.subheader("Visualizations")
-    if df is not None:
-        create_charts(filtered_data)  # Call the function to create visualizations for the filtered data
     # Forecasting Section for future sales prediction
     st.subheader("Future Sales Prediction")
-    if df is not None:
-        forecast_period = st.slider("Select forecast period (months)", min_value=1, max_value=24, value=12)  # Select forecast period
-        forecast_sales(filtered_data, forecast_period)  # Predict future sales based on selected forecast period
-    # Download Section for processed and filtered data
-    st.download_button("Download Processed Data", df.to_csv(index=False), file_name="processed_superstore.csv", mime="text/csv")  # Download processed data
-    st.download_button("Download Filtered Data", filtered_data.to_csv(index=False), file_name="filtered_superstore.csv", mime="text/csv")  # Download filtered data
-
-
-
+    forecast_period = st.slider("Select forecast period (months)", min_value=1, max_value=24, value=12)
+    forecast_sales(df, forecast_period)
 
