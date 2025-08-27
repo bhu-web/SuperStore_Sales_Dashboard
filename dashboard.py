@@ -9,6 +9,7 @@ from st_aggrid import AgGrid
 import plotly.figure_factory as ff
 from statsmodels.tsa.arima.model import ARIMA
 import numpy as np
+from pmdarima import auto_arima
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore') 
@@ -30,14 +31,17 @@ def display_data_insights(df):
                         "Categorical Column Value Counts", 
                         "Correlation Heatmap"]
     st.markdown("<h2>Select Insight to Display</h2>", unsafe_allow_html=True)
-    selected_insight = st.selectbox("", insights_options)
+    selected_insight = st.selectbox(
+        "Select insight:", insights_options, label_visibility="collapsed"
+    )
+
     if selected_insight == "Basic Info":
         st.write("## Basis Info")
         st.write("### Dataset Insights")
         st.write(f"**Number of Rows:** {df.shape[0]}")
         st.write(f"**Number of Columns:** {df.shape[1]}")
         st.write("### Column Details")
-        st.dataframe(df.dtypes.rename("Data Type"))
+        st.dataframe(df.dtypes.astype(str).rename("Data Type"))
     elif selected_insight == "Preview of the Data":
         st.write("### Preview of the Data")
         st.dataframe(df.head())
@@ -226,14 +230,24 @@ def generate_sales_profit_insights_by_category(df):
     }
     return insights
 
-# --- Sales Forecasting using ARIMA Model ---
+# --- Sales Forecasting using Auto ARIMA ---
 def forecast_sales(data, forecast_period=12):
     try:
-        data['Order Date'] = pd.to_datetime(data['Order Date'])
+        data['Order Date'] = pd.to_datetime(data['Order Date'], errors='coerce')
         sales_data = data.groupby('Order Date')['Sales'].sum()
-        model = ARIMA(sales_data, order=(5, 1, 0))  # ARIMA parameters (p, d, q)
-        model_fit = model.fit()
-        forecast = model_fit.forecast(steps=forecast_period)
+
+        # Fit auto_arima model (non-seasonal for now)
+        model = auto_arima(
+            sales_data,
+            seasonal=False,
+            trace=True,  # show search process in logs
+            error_action="ignore",  # ignore errors and keep searching
+            suppress_warnings=True
+        )
+        
+        # Forecast
+        forecast = model.predict(n_periods=forecast_period)
+
         # Generate future dates for the forecast period
         last_date = sales_data.index[-1]
         future_dates = pd.date_range(last_date, periods=forecast_period + 1, freq='M')[1:]
@@ -241,18 +255,28 @@ def forecast_sales(data, forecast_period=12):
             'Date': future_dates,
             'Forecasted Sales': forecast
         })
+
         # Plot the forecast
         forecast_fig = go.Figure()
-        forecast_fig.add_trace(go.Scatter(x=sales_data.index, y=sales_data.values, mode='lines', name='Historical Sales'))
-        forecast_fig.add_trace(go.Scatter(x=forecast_df['Date'], y=forecast_df['Forecasted Sales'], mode='lines',
-                                          name='Forecasted Sales', line=dict(dash='dash')))
-        forecast_fig.update_layout(title="Sales Forecast", xaxis_title="Date", yaxis_title="Sales")
-        st.plotly_chart(forecast_fig)  # Display the plot
-    except np.linalg.LinAlgError as e:
-        st.error("An error occurred while fitting the ARIMA model: Schur decomposition solver error.")
-        st.warning("Please check the dataset for issues like missing values or insufficient variance in the data.")
+        forecast_fig.add_trace(go.Scatter(
+            x=sales_data.index, y=sales_data.values,
+            mode='lines', name='Historical Sales'
+        ))
+        forecast_fig.add_trace(go.Scatter(
+            x=forecast_df['Date'], y=forecast_df['Forecasted Sales'],
+            mode='lines', name='Forecasted Sales',
+            line=dict(dash='dash')
+        ))
+        forecast_fig.update_layout(
+            title="Sales Forecast (Auto ARIMA)",
+            xaxis_title="Date",
+            yaxis_title="Sales"
+        )
+        st.plotly_chart(forecast_fig)
+
     except Exception as e:
-        st.error(f"An unexpected error occurred: {e}")
+        st.error(f"An error occurred while forecasting: {e}")
+        st.warning("Try adjusting the dataset or forecast period.")
 
 # Function to generate visualizations with error handling
 def create_charts(data):
