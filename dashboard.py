@@ -321,6 +321,19 @@ tab1, tab2, tab3, tab4 = st.tabs(["Dataset", "Data Cleaning", "Visualizations", 
 
 # Tab 1: Dataset
 with tab1:
+    st.header("Welcome to the Superstore Sales Dashboard 🎉")
+
+    st.markdown("""
+    This interactive dashboard helps you **explore, clean, visualize, and forecast**
+    sales data for a retail superstore.  
+
+    - 📊 **Exploratory Data Analysis**: Understand key trends and distributions.  
+    - 🧹 **Data Cleaning Tools**: Handle missing values and duplicates.  
+    - 📈 **Visualizations**: Gain insights by region, category, and time.  
+    - 🔮 **Forecasting**: Predict future sales with advanced ARIMA models.  
+
+    Upload your dataset to get started, or use the filters to drill down into insights.
+    """)
     st.header("Upload Your Dataset")
     # File uploader widget to allow user to upload a file
     fl = st.file_uploader(":file_folder: Upload a file", type=["csv", "txt", "xlsx", "xls"])
@@ -518,29 +531,28 @@ with tab3:
     fig = plot_scatter_sales_profit(filtered_df)  # Plot scatter plot
     st.plotly_chart(fig, use_container_width=True, key="scatter_sales_profit_chart")  # Display chart
     # Generate insights from sales and profit data grouped by category
-    insights = generate_sales_profit_insights_by_category(filtered_df)
-    # Displaying insights for each category
-    for index, row in insights["category_grouped"].iterrows():
-        st.write(f"### Category: {row['Category']}")
-        st.write(f"**Total Sales**: ${row['total_sales']:.2f}")
-        st.write(f"**Total Profit**: ${row['total_profit']:.2f}")
-        st.write(f"**Average Sales to Profit Ratio**: {row['avg_sales_profit_ratio']:.2f}")
-        st.write(f"**Sales-Profit Correlation**: {row['correlation']:.2f}")
-        col1, col2, col3 = st.columns([1, 2, 2])  # Create 3 columns
-        with col1:
-            # Display the top 5 products by sales and profit for the category
-            st.write(f"#### Top 5 Products by Sales:")
-            category_sales = insights["top_sales_by_category"][insights["top_sales_by_category"]["Category"] == row["Category"]]
-            st.write(category_sales[['Sub-Category', 'Sales']])
-        with col2:
-            st.write(f"#### Top 5 Products by Profit:")
-            category_profit = insights["top_profit_by_category"][insights["top_profit_by_category"]["Category"] == row["Category"]]
-            st.write(category_profit[['Sub-Category', 'Profit']])
-        with col3:
-            # Display outliers for the category
-            st.write(f"#### Outliers (High Sales, Low Profit):")
-            category_outliers = insights["outliers_by_category"][insights["outliers_by_category"]["Category"] == row["Category"]]
-            st.write(category_outliers[['Sub-Category', 'Sales', 'Profit']])
+    with st.expander("View Detailed Category-wise Sales & Profit Insights"):
+        insights = generate_sales_profit_insights_by_category(filtered_df)
+        for index, row in insights["category_grouped"].iterrows():
+            st.write(f"### Category: {row['Category']}")
+            st.write(f"**Total Sales**: ${row['total_sales']:.2f}")
+            st.write(f"**Total Profit**: ${row['total_profit']:.2f}")
+            st.write(f"**Average Sales to Profit Ratio**: {row['avg_sales_profit_ratio']:.2f}")
+            st.write(f"**Sales-Profit Correlation**: {row['correlation']:.2f}")
+
+            col1, col2, col3 = st.columns([1, 2, 2])
+            with col1:
+                st.write(f"#### Top 5 Products by Sales:")
+                category_sales = insights["top_sales_by_category"][insights["top_sales_by_category"]["Category"] == row["Category"]]
+                st.write(category_sales[['Sub-Category', 'Sales']])
+            with col2:
+                st.write(f"#### Top 5 Products by Profit:")
+                category_profit = insights["top_profit_by_category"][insights["top_profit_by_category"]["Category"] == row["Category"]]
+                st.write(category_profit[['Sub-Category', 'Profit']])
+            with col3:
+                st.write(f"#### Outliers (High Sales, Low Profit):")
+                category_outliers = insights["outliers_by_category"][insights["outliers_by_category"]["Category"] == row["Category"]]
+                st.write(category_outliers[['Sub-Category', 'Sales', 'Profit']])
     # Download option for scatter plot data
     create_download_button(filtered_df, ['Sales', 'Profit'], "Sales_Profit_Data")
     # Viewing first 500 rows of filtered data
